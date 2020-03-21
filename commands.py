@@ -1,5 +1,6 @@
 import random
 import requests
+import logging
 
 responses = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes - definitely.',
              'You can count on it.', 'As I see it, yes.', 'Most likely.', 'Outlook is good.', 'Yes.',
@@ -11,6 +12,7 @@ responses = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes -
 # Function to handle eight ball question responses from a fixed pool
 def eightball(msg):
     if len(msg.content) <= len('!eightball '):
+        logging.info(str(msg.author) + ' prompted eight ball without a question.')
         return '{0.author.mention}, please provide a question! It doesn\'t make sense for me to respond without a question.'.format(msg)
 
     val = random.randint(0, len(responses))
@@ -19,6 +21,7 @@ def eightball(msg):
 
     message = '{0.author.mention}, '.format(msg)
     message += ' ' + response
+    logging.info(str(msg.author) + ' prompted eight ball with a question and got a response.')
     return message
 
 
@@ -29,9 +32,12 @@ def wikihandler(msg):
     r = requests.get('https://gundam.fandom.com/api/v1/Search/List?query='+query)
     response = r.json()
     if r.status_code == 400 or r.status_code == 404:
-        return '{0.author.mention}, I can\'t find anything with that search. Try again?'.format(msg)
+        logging.info(str(msg.author) + ' prompted gwiki with a bad query.')
+        return '{0.author.mention}, it looks like your search wasn\'t allowed by the wiki. Try again?'.format(msg)
     else:
         if len(response["items"]) == 0:
+            logging.info(str(msg.author) + ' prompted gwiki with a query that returned nothing.')
             return '{0.author.mention}, I can\'t find anything with that search. Try again?'.format(msg)
         url = response["items"][0]["url"]
+        logging.info('{0} prompted gwiki with a good query and was served a page.'.format(str(msg.author)))
         return '{0.author.mention}, looking for this?: '.format(msg) + url

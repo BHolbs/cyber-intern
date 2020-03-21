@@ -9,6 +9,9 @@ __pycache__/
 # API key
 key
 
+# Log
+log
+
 # C extensions
 *.so
 
