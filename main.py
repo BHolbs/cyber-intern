@@ -8,7 +8,7 @@ key = file.read()
 file.close()
 logging.info("Key retrieved, booting bot.")
 
-startup_extensions = ['UserCommands']
+startup_extensions = ['UserCommands', 'AdminCommands']
 
 bot = commands.Bot(command_prefix='!')
 
@@ -20,7 +20,7 @@ for extension in startup_extensions:
         print('Failed to load extension {}\n{}'.format(extension, exc))
         quit()
 
-    bot.run(key)
+bot.run(key)
 
 
 # async methods

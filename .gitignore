@@ -12,6 +12,9 @@ key
 # Log
 log
 
+# Ban List
+bans
+
 # C extensions
 *.so
 
