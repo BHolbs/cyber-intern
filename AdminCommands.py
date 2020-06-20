@@ -3,14 +3,18 @@ from discord.ext import commands
 from datetime import datetime, timedelta
 
 # use for emplacing bans in a sorted fashion, and for customizing sorts
-#   - bisect for
-#   - operator for list.sort(key=operator.attrgetter('expiry'))
+#   - bisect for inserting in order
 import bisect
-import operator
 
+# use for scheduled job to unban
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+
+# TODO: implement updating of the ban list, use case is probably small enough to just rewrite the whole file
+# TODO: implement some way of testing this in a more automated fashion
 
 class Ban:
-    def __init__(self, user, expiration, reason):
+    def __init__(self, user: int(), expiration: datetime, reason):
         self.member = user
         self.expiry = expiration
         self.reason = reason
@@ -89,9 +93,36 @@ class AdminCommands(commands.Cog):
         # only timed bans go in this list, permanent bans have to be manually unbanned
         self.bans = list()
 
+        try:
+            f = open('bans', mode='r')
+            raw_bans = f.read().splitlines()
+
+            for line in raw_bans:
+                chunks = line.split(',')
+                self.bans.append(Ban(int(chunks[0]), datetime.strptime(chunks[1], '%m %d %Y %H:%M'), chunks[2]))
+
+        finally:
+            f.close()
+
         # TODO: change this ID when releasing to the official server
         self.internChannelId = 723323448075485237
+        self.cyberInternLogChannelId = 723740807433027685
 
+        # scheduling
+        self.scheduler = AsyncIOScheduler()
+
+        # Scheduled task to automatically check for expired bans
+        @self.scheduler.scheduled_job('interval', seconds=10)
+        async def unban():
+            channel = self.bot.get_channel(self.cyberInternLogChannelId)
+            await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
+            for ban in self.bans:
+                if ban.hasExpired(datetime.now()):
+                    await self.bot_unban(ban.member)
+
+        self.scheduler.start()
+
+    # Helper function to validate that admin command was used in a correct channel
     async def sentInPrivateChannel(self, ctx, member: discord.User = None):
         if ctx.channel.name != 'interns-assemble':
             await ctx.message.delete()
@@ -100,19 +131,20 @@ class AdminCommands(commands.Cog):
             return False
         if member == ctx.message.author:
             await ctx.message.delete()
-            await ctx.channel.send("{0.message.author.mention}: You can't ban/kick yourself, dummy.".format(ctx))
+            await ctx.channel.send("{0.message.author.mention}: You can't ban/unban/kick yourself, dummy.".format(ctx))
             return False
         if member is None:
             await ctx.message.delete()
             await ctx.channel.send(
-                '{0.message.author.mention}: You have to use the user\'s ID to ban/kick them.'.format(ctx))
+                '{0.message.author.mention}: You have to use the user\'s ID to ban/unban/kick them.'.format(ctx))
 
         return True
 
+    # Manual ban command for moderators
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def ban(self, ctx, member: discord.Member = None, duration=None, *, reason=None):
-        good_target = hasGoodTarget(ctx, member)
+        good_target = await hasGoodTarget(ctx, member)
         if not good_target:
             return
 
@@ -167,10 +199,11 @@ class AdminCommands(commands.Cog):
         await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
 
+    # Manual kick command for moderators
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def kick(self, ctx, member: discord.Member = None, reason=None):
-        good_target = hasGoodTarget(ctx, member)
+        good_target = await hasGoodTarget(ctx, member)
         if not good_target:
             return
 
@@ -188,6 +221,41 @@ class AdminCommands(commands.Cog):
                           "continue the behavior that resulted in your kick, you may be banned. ")
         await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
+
+    # Manual unban command for moderators
+    @commands.command()
+    @commands.has_any_role('gods', 'interns')
+    async def unban(self, ctx, memberId=None):
+        banned_users = await ctx.guild.bans()
+        member = None
+        for banned in banned_users:
+            if banned.user.id == int(memberId):
+                member = banned.user
+
+        if member is None:
+            ctx.channel.send('{0.message.author.mention}: User is not banned.'.format(ctx))
+            return
+
+        channel_good = await self.sentInPrivateChannel(ctx, member)
+        if not channel_good:
+            return
+
+        await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
+        await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
+                               ' to notify them.'.format(ctx))
+
+    # Handler for the bot automatically unbanning members
+    async def bot_unban(self, memberId=None):
+        channel = self.bot.get_channel(self.cyberInternLogChannelId)
+        guild = channel.guild
+        banned_users = await guild.bans()
+        member = None
+        for banned in banned_users:
+            if banned.user.id == int(memberId):
+                member = banned.user
+
+        await channel.send("Unbanning {0.name}#{0.discriminator} automatically.".format(member))
+        await guild.unban(user=member, reason='Ban expired.')
 
 
 def setup(bot):
