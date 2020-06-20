@@ -66,6 +66,23 @@ def durationGood(duration):
     return seconds
 
 
+async def hasGoodTarget(ctx, member: discord.Member = None):
+    member_roles = list()
+    for i in member.roles:
+        member_roles.append(i.name)
+    trying_to_ban_mod = any(item in ['interns', 'gods'] for item in member_roles)
+    if trying_to_ban_mod:
+        await ctx.message.delete()
+        await ctx.guild.owner.send("Hello!\n\n"
+                                   "{0.message.author}"
+                                   " in The OPMeatery attempted to ban/kick"
+                                   " {1}."
+                                   " I am not programmed to allow moderators to ban/kick each other, or gods, but I"
+                                   " am programmed to notify you if someone tries.".format(ctx, member))
+        return False
+    return True
+
+
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -83,30 +100,20 @@ class AdminCommands(commands.Cog):
             return False
         if member == ctx.message.author:
             await ctx.message.delete()
-            await ctx.channel.send("{0.message.author.mention}: You can't ban yourself, dummy.".format(ctx))
+            await ctx.channel.send("{0.message.author.mention}: You can't ban/kick yourself, dummy.".format(ctx))
             return False
         if member is None:
             await ctx.message.delete()
             await ctx.channel.send(
-                '{0.message.author.mention}: You have to mention the user to ban with @.'.format(ctx))
+                '{0.message.author.mention}: You have to use the user\'s ID to ban/kick them.'.format(ctx))
 
         return True
 
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def ban(self, ctx, member: discord.Member = None, duration=None, *, reason=None):
-        member_roles = list()
-        for i in member.roles:
-            member_roles.append(i.name)
-        trying_to_ban_mod = any(item in ['interns', 'gods'] for item in member_roles)
-        if trying_to_ban_mod:
-            await ctx.message.delete()
-            await ctx.guild.owner.send("Hello!\n\n"
-                                       "{0.message.author}"
-                                       " in The OPMeatery attempted to ban"
-                                       " {1}."
-                                       " I am not programmed to allow moderators to ban each other, or gods, but I"
-                                       " am programmed to notify you if someone tries.".format(ctx, member))
+        good_target = hasGoodTarget(ctx, member)
+        if not good_target:
             return
 
         channel_good = await self.sentInPrivateChannel(ctx, member)
@@ -157,7 +164,29 @@ class AdminCommands(commands.Cog):
                               "Your ban will not expire automatically, you must contact the moderation team to appeal."
                               .format(reason))
 
-        # await ctx.guild.ban(user=member, delete_message_days=1, reason=ban.reason)
+        await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
+        await ctx.message.delete()
+
+    @commands.command()
+    @commands.has_any_role('gods', 'interns')
+    async def kick(self, ctx, member: discord.Member = None, reason=None):
+        good_target = hasGoodTarget(ctx, member)
+        if not good_target:
+            return
+
+        channel_good = await self.sentInPrivateChannel(ctx, member)
+        if not channel_good:
+            return
+
+        if reason is None:
+            reason = "Not specified."
+
+        await member.send("Hello, unfortunately you have been kicked from The OPMeatery by the moderation team.\n"
+                          "\t\tReason: {0.reason}\n"
+                          "\n"
+                          "You may rejoin the server immediately, but be aware that a kick is a warning. If you "
+                          "continue the behavior that resulted in your kick, you may be banned. ")
+        await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
 
 

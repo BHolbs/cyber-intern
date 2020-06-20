@@ -1,6 +1,7 @@
 from discord.ext import commands
 import logging
 
+# spin up the bot
 logging.basicConfig(filename='log', level=logging.INFO)
 logging.info("Starting.")
 file = open('key', mode='r')
@@ -8,10 +9,11 @@ key = file.read()
 file.close()
 logging.info("Key retrieved, booting bot.")
 
+# set up extensions, assign command prefix
 startup_extensions = ['UserCommands', 'AdminCommands']
-
 bot = commands.Bot(command_prefix='!')
 
+# load extensions
 for extension in startup_extensions:
     try:
         bot.load_extension(extension)
