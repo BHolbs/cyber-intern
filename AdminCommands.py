@@ -1,6 +1,8 @@
+import os
 import discord
 from discord.ext import commands
 from datetime import datetime, timedelta
+import logging
 
 # use for emplacing bans in a sorted fashion, and for customizing sorts
 #   - bisect for inserting in order
@@ -9,9 +11,6 @@ import bisect
 # use for scheduled job to unban
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-
-# TODO: implement updating of the ban list, use case is probably small enough to just rewrite the whole file
-# TODO: implement some way of testing this in a more automated fashion
 
 class Ban:
     def __init__(self, user: int(), expiration: datetime, reason):
@@ -22,11 +21,26 @@ class Ban:
     def __lt__(self, other):
         return self.expiry < other.expiry
 
+    def __eq__(self, other):
+        return self.member == other
+
     def hasExpired(self, now):
         if now > self.expiry:
             return True
 
         return False
+
+    def writeBanToFile(self):
+        try:
+            f = open("bans", mode='a')
+            f.write(str(self.member))
+            f.write(',')
+            f.write(self.expiry.strftime('%m %d %Y %H:%M'))
+            f.write(',')
+            f.write(self.reason)
+            f.write('\n')
+        finally:
+            f.close()
 
 
 # returns how many seconds long the ban is, or -1 if the duration is formatted improperly
@@ -100,7 +114,6 @@ class AdminCommands(commands.Cog):
             for line in raw_bans:
                 chunks = line.split(',')
                 self.bans.append(Ban(int(chunks[0]), datetime.strptime(chunks[1], '%m %d %Y %H:%M'), chunks[2]))
-
         finally:
             f.close()
 
@@ -112,13 +125,18 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        @self.scheduler.scheduled_job('interval', seconds=10)
+        @self.scheduler.scheduled_job('interval', seconds=5)
         async def unban():
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
+            to_remove = list()
             for ban in self.bans:
                 if ban.hasExpired(datetime.now()):
                     await self.bot_unban(ban.member)
+                    to_remove.append(ban)
+
+            self.bans = [x for x in self.bans if x not in to_remove]
+            self.rewriteBanFile()
 
         self.scheduler.start()
 
@@ -173,15 +191,7 @@ class AdminCommands(commands.Cog):
             bisect.insort(self.bans, ban)
             timestamp = expiry.strftime('%B %d %Y at %I:%M %p Pacific')
 
-            try:
-                f = open("bans", mode='a')
-                f.write(str(ban.member.id))
-                f.write(',')
-                f.write(ban.expiry.strftime('%m %d %Y %H:%M'))
-                f.write(',')
-                f.write(ban.reason)
-            finally:
-                f.close()
+            ban.writeBanToFile()
 
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
                               "\t\tReason: {0.reason} \n"
@@ -198,6 +208,8 @@ class AdminCommands(commands.Cog):
 
         await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
+        logging.info('{0.message.author} banned {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+                     .format(ctx, member, reason))
 
     # Manual kick command for moderators
     @commands.command()
@@ -221,6 +233,24 @@ class AdminCommands(commands.Cog):
                           "continue the behavior that resulted in your kick, you may be banned. ")
         await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
+        logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+                     .format(ctx, member, reason))
+
+    def rewriteBanFile(self):
+        # if the list is only 1 element long, just delete the file. other methods will create the file if need be.
+        if len(self.bans) == 1:
+            os.remove('bans')
+        try:
+            f = open('bans', mode='w')
+            for ban in self.bans:
+                f.write(str(ban.member))
+                f.write(',')
+                f.write(ban.expiry.strftime('%m %d %Y %H:%M'))
+                f.write(',')
+                f.write(ban.reason)
+                f.write('\n')
+        finally:
+            f.close()
 
     # Manual unban command for moderators
     @commands.command()
@@ -243,6 +273,8 @@ class AdminCommands(commands.Cog):
         await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
         await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
                                ' to notify them.'.format(ctx))
+        logging.info('{0.message.author} unbanned {1.name}#{1.discriminator}, id: {1.id}.'
+                     .format(ctx, member))
 
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
@@ -254,8 +286,10 @@ class AdminCommands(commands.Cog):
             if banned.user.id == int(memberId):
                 member = banned.user
 
-        await channel.send("Unbanning {0.name}#{0.discriminator} automatically.".format(member))
+        await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')
+        logging.info('Cyber-Intern unbanned {0.name}#{0.discriminator}, id: {0.id} because ban expired.'.format(member))
+        return True
 
 
 def setup(bot):
