@@ -25,10 +25,7 @@ class Ban:
         return self.member == other
 
     def hasExpired(self, now):
-        if now > self.expiry:
-            return True
-
-        return False
+        return now > self.expiry:
 
     def writeBanToFile(self):
         try:
@@ -118,6 +115,7 @@ class AdminCommands(commands.Cog):
             f.close()
 
         # TODO: change this ID when releasing to the official server
+        # TODO: consider having a search to find if the channel, and create it if it doesn't exist instead?
         self.internChannelId = 723323448075485237
         self.cyberInternLogChannelId = 723740807433027685
 
