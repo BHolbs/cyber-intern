@@ -9,6 +9,9 @@ __pycache__/
 # API key
 key
 
+# Mongo DB connection string
+connection_string
+
 # Log
 log
 

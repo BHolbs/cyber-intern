@@ -1,5 +1,6 @@
 from discord.ext import commands
 import logging
+import os
 
 # spin up the bot
 logging.basicConfig(filename='log', level=logging.INFO)
@@ -7,7 +8,14 @@ logging.info("Starting.")
 file = open('key', mode='r')
 key = file.read()
 file.close()
-logging.info("Key retrieved, booting bot.")
+logging.info("Key retrieved.")
+
+file = open('connection_string', mode='r')
+connection_string = file.read()
+os.environ['CONNECTION_STRING'] = connection_string
+connection_string = str()
+file.close()
+logging.info("Connection string set, booting bot.")
 
 # set up extensions, assign command prefix
 startup_extensions = ['UserCommands', 'AdminCommands']
