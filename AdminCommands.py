@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timedelta
 import logging
+from pymongo import MongoClient
 
 # use for emplacing bans in a sorted fashion, and for customizing sorts
 #   - bisect for inserting in order
@@ -25,7 +26,7 @@ class Ban:
         return self.member == other
 
     def hasExpired(self, now):
-        return now > self.expiry:
+        return now > self.expiry
 
     def writeBanToFile(self):
         try:
@@ -101,18 +102,10 @@ async def hasGoodTarget(ctx, member: discord.Member = None):
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # only timed bans go in this list, permanent bans have to be manually unbanned
-        self.bans = list()
 
-        try:
-            f = open('bans', mode='r')
-            raw_bans = f.read().splitlines()
-
-            for line in raw_bans:
-                chunks = line.split(',')
-                self.bans.append(Ban(int(chunks[0]), datetime.strptime(chunks[1], '%m %d %Y %H:%M'), chunks[2]))
-        finally:
-            f.close()
+        # only timed bans go into the DB, permanent bans have to be manually unbanned
+        # DB, as a free mongodb cluster, only has 512MB of storage, but this should be plenty
+        self.bans = MongoClient(os.environ['CONNECTION_STRING'])['cyber-intern'].bans
 
         # TODO: change this ID when releasing to the official server
         # TODO: consider having a search to find if the channel, and create it if it doesn't exist instead?
@@ -123,6 +116,7 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
+        # TODO: refactor this to use the database
         @self.scheduler.scheduled_job('interval', seconds=5)
         async def unban():
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
@@ -157,6 +151,7 @@ class AdminCommands(commands.Cog):
         return True
 
     # Manual ban command for moderators
+    # TODO: refactor this to use the database
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def ban(self, ctx, member: discord.Member = None, duration=None, *, reason=None):
@@ -234,6 +229,7 @@ class AdminCommands(commands.Cog):
         logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
+    # TODO: delete this method when it is no longer necessary
     def rewriteBanFile(self):
         # if the list is only 1 element long, just delete the file. other methods will create the file if need be.
         if len(self.bans) == 1:
@@ -251,6 +247,7 @@ class AdminCommands(commands.Cog):
             f.close()
 
     # Manual unban command for moderators
+    # TODO: refactor this to use the database
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def unban(self, ctx, memberId=None):
@@ -274,6 +271,7 @@ class AdminCommands(commands.Cog):
         logging.info('{0.message.author} unbanned {1.name}#{1.discriminator}, id: {1.id}.'
                      .format(ctx, member))
 
+    # TODO: refactor this to use the database
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
         channel = self.bot.get_channel(self.cyberInternLogChannelId)
