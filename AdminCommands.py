@@ -119,6 +119,8 @@ class AdminCommands(commands.Cog):
         # TODO: refactor this to use the database
         @self.scheduler.scheduled_job('interval', seconds=5)
         async def unban():
+            return
+            # just quit out for now
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
             to_remove = list()
@@ -180,17 +182,15 @@ class AdminCommands(commands.Cog):
             now = datetime.now()
             expiry = now + timedelta(seconds=ban_duration_in_seconds)
 
-            ban = Ban(member, expiry, reason)
-            bisect.insort(self.bans, ban)
+            ban = {'member': member.id, 'expiry:': expiry, 'reason': reason}
+            self.bans.insert_one(ban)
             timestamp = expiry.strftime('%B %d %Y at %I:%M %p Pacific')
 
-            ban.writeBanToFile()
-
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
-                              "\t\tReason: {0.reason} \n"
+                              "\t\tReason: {0} \n"
                               "\n"
-                              "Your ban will expire on: {1}.\nPlease allow up to an hour after the time given,"
-                              " to compensate for potential daylight savings time issues.".format(ban, timestamp))
+                              "Your ban will automatically expire on: {1}.\nPlease allow up to an hour after the time given,"
+                              " to compensate for potential daylight savings time issues.".format(ban['reason'], timestamp))
         else:
             await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
                               "moderation team. \n"
@@ -199,7 +199,7 @@ class AdminCommands(commands.Cog):
                               "Your ban will not expire automatically, you must contact the moderation team to appeal."
                               .format(reason))
 
-        await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
+        await ctx.guild.ban(user=member, delete_message_days=1)
         await ctx.message.delete()
         logging.info('{0.message.author} banned {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
@@ -264,6 +264,10 @@ class AdminCommands(commands.Cog):
         channel_good = await self.sentInPrivateChannel(ctx, member)
         if not channel_good:
             return
+
+        # deletion isn't occurring here, neither is it finding a record that should definitely be in the db
+        result = self.bans.delete_one({'member': memberId})
+        print(result)
 
         await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
         await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
