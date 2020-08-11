@@ -265,9 +265,7 @@ class AdminCommands(commands.Cog):
         if not channel_good:
             return
 
-        # deletion isn't occurring here, neither is it finding a record that should definitely be in the db
-        result = self.bans.delete_one({'member': memberId})
-        print(result)
+        result = self.bans.delete_one({'member': member.id})
 
         await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
         await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
