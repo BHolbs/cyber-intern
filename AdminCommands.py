@@ -246,6 +246,7 @@ class AdminCommands(commands.Cog):
                                    "Please provide the following information:\n"
                                    "\t Error occurred at: {0}.\n"
                                    "\t Error occurred when unbanning user with id: {1} ".format(timestamp, memberId))
+            return False
 
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
