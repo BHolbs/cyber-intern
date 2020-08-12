@@ -13,34 +13,6 @@ import bisect
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
-class Ban:
-    def __init__(self, user: int(), expiration: datetime, reason):
-        self.member = user
-        self.expiry = expiration
-        self.reason = reason
-
-    def __lt__(self, other):
-        return self.expiry < other.expiry
-
-    def __eq__(self, other):
-        return self.member == other
-
-    def hasExpired(self, now):
-        return now > self.expiry
-
-    def writeBanToFile(self):
-        try:
-            f = open("bans", mode='a')
-            f.write(str(self.member))
-            f.write(',')
-            f.write(self.expiry.strftime('%m %d %Y %H:%M'))
-            f.write(',')
-            f.write(self.reason)
-            f.write('\n')
-        finally:
-            f.close()
-
-
 # returns how many seconds long the ban is, or -1 if the duration is formatted improperly
 def durationGood(duration):
     # initialize to -1, so we can skip it rather than require both flags even if a value is 0
@@ -116,21 +88,16 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        # TODO: refactor this to use the database
         @self.scheduler.scheduled_job('interval', seconds=5)
         async def unban():
-            return
-            # just quit out for now
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
-            to_remove = list()
-            for ban in self.bans:
-                if ban.hasExpired(datetime.now()):
-                    await self.bot_unban(ban.member)
-                    to_remove.append(ban)
 
-            self.bans = [x for x in self.bans if x not in to_remove]
-            self.rewriteBanFile()
+            now = datetime.utcnow()
+            for ban in self.bans.find({'expiry': {"$lte": now}}):
+                await self.bot_unban(ban['member'])
+
+            self.bans.delete_many({'expiry': {"$lte": now}})
 
         self.scheduler.start()
 
@@ -153,7 +120,6 @@ class AdminCommands(commands.Cog):
         return True
 
     # Manual ban command for moderators
-    # TODO: refactor this to use the database
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def ban(self, ctx, member: discord.Member = None, duration=None, *, reason=None):
@@ -179,18 +145,19 @@ class AdminCommands(commands.Cog):
                 return
 
             # calculate ban expiration
-            now = datetime.now()
+            now = datetime.utcnow()
             expiry = now + timedelta(seconds=ban_duration_in_seconds)
 
-            ban = {'member': member.id, 'expiry:': expiry, 'reason': reason}
+            ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
             self.bans.insert_one(ban)
-            timestamp = expiry.strftime('%B %d %Y at %I:%M %p Pacific')
+            timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
 
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
                               "\t\tReason: {0} \n"
                               "\n"
                               "Your ban will automatically expire on: {1}.\nPlease allow up to an hour after the time given,"
-                              " to compensate for potential daylight savings time issues.".format(ban['reason'], timestamp))
+                              " to compensate for potential daylight savings time issues.".format(ban['reason'],
+                                                                                                  timestamp))
         else:
             await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
                               "moderation team. \n"
@@ -229,25 +196,7 @@ class AdminCommands(commands.Cog):
         logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
-    # TODO: delete this method when it is no longer necessary
-    def rewriteBanFile(self):
-        # if the list is only 1 element long, just delete the file. other methods will create the file if need be.
-        if len(self.bans) == 1:
-            os.remove('bans')
-        try:
-            f = open('bans', mode='w')
-            for ban in self.bans:
-                f.write(str(ban.member))
-                f.write(',')
-                f.write(ban.expiry.strftime('%m %d %Y %H:%M'))
-                f.write(',')
-                f.write(ban.reason)
-                f.write('\n')
-        finally:
-            f.close()
-
     # Manual unban command for moderators
-    # TODO: refactor this to use the database
     @commands.command()
     @commands.has_any_role('gods', 'interns')
     async def unban(self, ctx, memberId=None):
@@ -256,6 +205,7 @@ class AdminCommands(commands.Cog):
         for banned in banned_users:
             if banned.user.id == int(memberId):
                 member = banned.user
+                break
 
         if member is None:
             ctx.channel.send('{0.message.author.mention}: User is not banned.'.format(ctx))
@@ -283,6 +233,20 @@ class AdminCommands(commands.Cog):
         for banned in banned_users:
             if banned.user.id == int(memberId):
                 member = banned.user
+                break
+
+        # this is very unlikely to happen, but i want to know if there's a DB mismatch w/ banlist
+        if member is None:
+            now = datetime.utcnow()
+            timestamp = now.strftime('%B %d %Y at %I:%M %p UTC')
+            logging.error("Auto unban mismatch. Auto unbanner tried to unban someone not on the ban list."
+                          " Member Id provided: {0}".format(memberId))
+            await guild.owner.send("Hello. A mismatch has occurred during the automatic unbanning process. "
+                                   "Please notify my developer as soon as possible, he'll know what I mean.\n"
+                                   "Please provide the following information:\n"
+                                   "\t Error occurred at: {0}.\n"
+                                   "\t Error occurred when unbanning user with id: {1} ".format(timestamp, memberId))
+
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')
