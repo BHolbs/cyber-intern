@@ -223,7 +223,6 @@ class AdminCommands(commands.Cog):
         logging.info('{0.message.author} unbanned {1.name}#{1.discriminator}, id: {1.id}.'
                      .format(ctx, member))
 
-    # TODO: refactor this to use the database
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
         channel = self.bot.get_channel(self.cyberInternLogChannelId)
@@ -251,7 +250,7 @@ class AdminCommands(commands.Cog):
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')
-        logging.info('Cyber-Intern unbanned {0.name}#{0.discriminator}, id: {0.id} because ban expired.'.format(member))
+        logging.info('I unbanned {0.name}#{0.discriminator}, id: {0.id} because ban expired.'.format(member))
         return True
 
 
