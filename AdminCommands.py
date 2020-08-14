@@ -5,10 +5,6 @@ from datetime import datetime, timedelta
 import logging
 from pymongo import MongoClient
 
-# use for emplacing bans in a sorted fashion, and for customizing sorts
-#   - bisect for inserting in order
-import bisect
-
 # use for scheduled job to unban
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -88,7 +84,7 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        @self.scheduler.scheduled_job('interval', seconds=5)
+        @self.scheduler.scheduled_job('interval', hours=1)
         async def unban():
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
@@ -116,6 +112,7 @@ class AdminCommands(commands.Cog):
             await ctx.message.delete()
             await ctx.channel.send(
                 '{0.message.author.mention}: You have to use the user\'s ID to ban/unban/kick them.'.format(ctx))
+            return False
 
         return True
 
@@ -246,7 +243,6 @@ class AdminCommands(commands.Cog):
                                    "\t Error occurred at: {0}.\n"
                                    "\t Error occurred when unbanning user with id: {1} ".format(timestamp, memberId))
             return False
-
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')

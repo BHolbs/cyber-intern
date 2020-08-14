@@ -15,7 +15,7 @@ connection_string = file.read()
 os.environ['CONNECTION_STRING'] = connection_string
 connection_string = str()
 file.close()
-logging.info("Connection string set, booting bot.")
+logging.info("Connection string set, booting up.")
 
 # set up extensions, assign command prefix
 startup_extensions = ['UserCommands', 'AdminCommands']
@@ -27,7 +27,7 @@ for extension in startup_extensions:
         bot.load_extension(extension)
     except Exception as e:
         exc = '{}: {}'.format(type(e).__name__, e)
-        print('Failed to load extension {}\n{}'.format(extension, exc))
+        logging.error('Failed to load extension {0}\n{1}'.format(extension, exc))
         quit()
 
 bot.run(key)
