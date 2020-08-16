@@ -95,6 +95,7 @@ class AdminCommands(commands.Cog):
 
             self.bans.delete_many({'expiry': {"$lte": now}})
 
+        self.schedulerStartedAt = datetime.utcnow()
         self.scheduler.start()
 
     # Helper function to validate that admin command was used in a correct channel
@@ -143,18 +144,32 @@ class AdminCommands(commands.Cog):
 
             # calculate ban expiration
             now = datetime.utcnow()
-            expiry = now + timedelta(seconds=ban_duration_in_seconds)
+            expiry = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
+            expiry = expiry + timedelta(seconds=ban_duration_in_seconds)
 
-            ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
+            # this looks a little messy so let's summarize:
+            #   the unban task runs every hour.
+            #   that means bans won't expire EXACTLY after the ban duration set
+            #   i want to notify the user of the time when the unban task will unban them
+            if expiry.minute > self.schedulerStartedAt.minute:
+                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour + 1,
+                                      minute=expiry.minute)
+            elif expiry.minute < self.schedulerStartedAt.minute:
+                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour,
+                                      minute=self.schedulerStartedAt.minute)
+            else:
+                expires_at = expiry
+
+            ban = {'member': member.id, 'expiry': expires_at, 'reason': reason}
             self.bans.insert_one(ban)
-            timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
+            timestamp = expires_at.strftime('%B %d %Y at %I:%M %p UTC')
 
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
                               "\t\tReason: {0} \n"
                               "\n"
-                              "Your ban will automatically expire on: {1}.\nPlease allow up to an hour after the time given,"
-                              " to compensate for potential daylight savings time issues.".format(ban['reason'],
-                                                                                                  timestamp))
+                              "Your ban will automatically expire on: {1}.\nPlease allow up to an hour after the time "
+                              "given, to compensate for potential daylight savings time issues.".format(ban['reason'],
+                                                                                                        timestamp))
         else:
             await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
                               "moderation team. \n"
