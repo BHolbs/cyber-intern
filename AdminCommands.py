@@ -167,9 +167,9 @@ class AdminCommands(commands.Cog):
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
                               "\t\tReason: {0} \n"
                               "\n"
-                              "Your ban will automatically expire on: {1}.\nPlease allow up to an hour after the time "
-                              "given, to compensate for potential daylight savings time issues.".format(ban['reason'],
-                                                                                                        timestamp))
+                              "Your ban will automatically expire on: {1}.\n"
+                              "Please allow up to an hour after this time before contacting the moderation team."
+                              .format(ban['reason'], timestamp))
         else:
             await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
                               "moderation team. \n"
@@ -207,6 +207,30 @@ class AdminCommands(commands.Cog):
         await ctx.message.delete()
         logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
+
+    # This one is actually fine to be sent in any channel, there's no significant information being forfeited here
+    @commands.command()
+    @commands.has_any_role('gods', 'interns')
+    async def unbancheckwhen(self, ctx):
+        now = datetime.utcnow()
+
+        after_unban = now.minute >= self.schedulerStartedAt.minute
+
+        if after_unban:
+            if now.hour == 23:
+                hour = 0
+            else:
+                hour = now.hour+1
+            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=hour,
+                                  minute=self.schedulerStartedAt.minute)
+        else:
+            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour,
+                                  minute=self.schedulerStartedAt.minute)
+
+        out = next_unban.strftime('%B %d %Y at %I:%M %p UTC')
+        await ctx.channel.send("The ban list will be checked on {0}.".format(out))
+        logging.info('{0.message.author} checked the time for the unban scheduler in channel {1}'
+                     .format(ctx, ctx.channel.name))
 
     # Manual unban command for moderators
     @commands.command()
