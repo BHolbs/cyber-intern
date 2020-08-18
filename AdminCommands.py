@@ -119,7 +119,7 @@ class AdminCommands(commands.Cog):
 
     # Manual ban command for moderators
     @commands.command()
-    @commands.has_any_role('gods', 'interns')
+    @commands.has_permissions(ban_members=True)
     async def ban(self, ctx, member: discord.Member = None, duration=None, *, reason=None):
         good_target = await hasGoodTarget(ctx, member)
         if not good_target:
@@ -185,7 +185,7 @@ class AdminCommands(commands.Cog):
 
     # Manual kick command for moderators
     @commands.command()
-    @commands.has_any_role('gods', 'interns')
+    @commands.has_permissions(ban_members=True)
     async def kick(self, ctx, member: discord.Member = None, reason=None):
         good_target = await hasGoodTarget(ctx, member)
         if not good_target:
@@ -210,7 +210,7 @@ class AdminCommands(commands.Cog):
 
     # This one is actually fine to be sent in any channel, there's no significant information being forfeited here
     @commands.command()
-    @commands.has_any_role('gods', 'interns')
+    @commands.has_permissions(ban_members=True)
     async def unbancheckwhen(self, ctx):
         now = datetime.utcnow()
 
@@ -234,7 +234,7 @@ class AdminCommands(commands.Cog):
 
     # Manual unban command for moderators
     @commands.command()
-    @commands.has_any_role('gods', 'interns')
+    @commands.has_permissions(ban_members=True)
     async def unban(self, ctx, memberId=None):
         banned_users = await ctx.guild.bans()
         member = None
