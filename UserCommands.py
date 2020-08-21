@@ -2,6 +2,7 @@ from discord.ext import commands
 import logging
 import random
 import requests
+import asyncio
 
 
 class UserCommands(commands.Cog):
@@ -29,6 +30,16 @@ class UserCommands(commands.Cog):
         msg = '{0.message.author.mention}: '.format(ctx) + ' ' + response
         logging.info(str(ctx.message.author) + ' prompted 8 ball with a question and got a response.')
         await ctx.send(msg)
+
+    @commands.command()
+    async def flipacoin(self, ctx):
+        await ctx.send('{0.message.author.mention}, call it!'.format(ctx))
+        await asyncio.sleep(3)
+        out = random.randint(0, 1)
+        if out == 1:
+            await ctx.send('It\'s heads!')
+        else:
+            await ctx.send('It\'s tails!')
 
     @commands.command()
     async def gwiki(self, ctx, *, arg):
