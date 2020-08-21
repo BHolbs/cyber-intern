@@ -75,7 +75,6 @@ class AdminCommands(commands.Cog):
         # DB, as a free mongodb cluster, only has 512MB of storage, but this should be plenty
         self.bans = MongoClient(os.environ['CONNECTION_STRING'])['cyber-intern'].bans
 
-        # TODO: change this ID when releasing to the official server
         # TODO: consider having a search to find if the channel, and create it if it doesn't exist instead?
         self.internChannelId = 723323448075485237
         self.cyberInternLogChannelId = 723740807433027685
@@ -152,8 +151,12 @@ class AdminCommands(commands.Cog):
             #   that means bans won't expire EXACTLY after the ban duration set
             #   i want to notify the user of the time when the unban task will unban them
             if expiry.minute > self.schedulerStartedAt.minute:
-                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour + 1,
-                                      minute=expiry.minute)
+                if expiry.hour == 23:
+                    hour = 0
+                else:
+                    hour = expiry.hour+1
+                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=hour,
+                                      minute=self.schedulerStartedAt.minute)
             elif expiry.minute < self.schedulerStartedAt.minute:
                 expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour,
                                       minute=self.schedulerStartedAt.minute)
@@ -180,7 +183,7 @@ class AdminCommands(commands.Cog):
 
         await ctx.guild.ban(user=member, delete_message_days=1)
         await ctx.message.delete()
-        logging.info('{0.message.author} banned {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+        logging.info('{0.message.author} banned user with id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
     # Manual kick command for moderators
@@ -202,10 +205,10 @@ class AdminCommands(commands.Cog):
                           "\t\tReason: {0.reason}\n"
                           "\n"
                           "You may rejoin the server immediately, but be aware that a kick is a warning. If you "
-                          "continue the behavior that resulted in your kick, you may be banned. ")
+                          "continue the behavior that resulted in your kick, you may be banned.".format(reason))
         await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
-        logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+        logging.info('{0.message.author} kicked user with id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
     # This one is actually fine to be sent in any channel, there's no significant information being forfeited here
@@ -256,7 +259,7 @@ class AdminCommands(commands.Cog):
         await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
         await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
                                ' to notify them.'.format(ctx))
-        logging.info('{0.message.author} unbanned {1.name}#{1.discriminator}, id: {1.id}.'
+        logging.info('{0.message.author} unbanned user with id: {1.id}.'
                      .format(ctx, member))
 
     # Handler for the bot automatically unbanning members
@@ -285,7 +288,7 @@ class AdminCommands(commands.Cog):
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')
-        logging.info('I unbanned {0.name}#{0.discriminator}, id: {0.id} because ban expired.'.format(member))
+        logging.info('I unbanned user with id: {0.id} because ban expired.'.format(member))
         return True
 
 
