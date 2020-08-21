@@ -119,6 +119,10 @@ class AdminCommands(commands.Cog):
             await ctx.message.delete()
             await ctx.channel.send("{0.message.author.mention}: You can't ban/unban/kick yourself, dummy.".format(ctx))
             return False
+        # if someone tries to remove the bot with its own commands
+        if member.id == 675203071609012247:
+            await ctx.channel.send("I can't let you do that, {0.message.author.mention}.")
+            return False
         if member is None:
             await ctx.message.delete()
             await ctx.channel.send(
@@ -184,7 +188,7 @@ class AdminCommands(commands.Cog):
                                   "\n"
                                   "Your ban will not expire automatically, you must contact the moderation team to "
                                   "appeal. ".format(reason))
-                
+
             except discord.ext.commands.CommandInvokeError:
                 ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
                                  "Their ban is permanent, and will not expire unless you manually unban them.")
