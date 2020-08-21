@@ -12,8 +12,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # returns how many seconds long the ban is, or -1 if the duration is formatted improperly
 def durationGood(duration):
     # initialize to -1, so we can skip it rather than require both flags even if a value is 0
-    flags = {'d': -1, 'h': -1}
-    allowed = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'd', 'h'}
+    flags = {'d': -1, 'h': -1, 'm': -1}
+    allowed = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'd', 'h', 'm'}
 
     duration = duration.lower()
     for i in range(len(duration)):
@@ -34,6 +34,12 @@ def durationGood(duration):
             else:
                 flags['h'] = i
 
+        if duration[i] == 'm':
+            if flags['m'] != -1:
+                return -1
+            else:
+                flags['m'] = i
+
     flags_in_order = {key: value for key, value in sorted(flags.items(), key=lambda item: item[1])}
     seconds = 0
     start = 0
@@ -45,6 +51,10 @@ def durationGood(duration):
         if key == 'h' and flags_in_order[key] != -1:
             end = flags_in_order[key]
             seconds += (int(duration[start:end]) * 60 * 60)
+            start = end + 1
+        if key == 'm' and flags_in_order[key] != -1:
+            end = flags_in_order[key]
+            seconds += (int(duration[start:end]) * 60)
             start = end + 1
 
     return seconds
@@ -147,24 +157,37 @@ class AdminCommands(commands.Cog):
             expiry = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
             expiry = expiry + timedelta(seconds=ban_duration_in_seconds)
 
+            # ban should be added to the DB AFTER ban goes through
             ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
-            self.bans.insert_one(ban)
             timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
+            self.bans.insert_one(ban)
 
-            await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
-                              "\t\tReason: {0} \n"
-                              "\n"
-                              "Your ban will automatically expire on: {1}.\n"
-                              "Please allow up to half an hour after this time before contacting the moderation team "
-                              "if your ban appears to have not yet been lifted."
-                              .format(ban['reason'], timestamp))
+            try:
+                await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation "
+                                  "team. \n "
+                                  "\t\tReason: {0} \n"
+                                  "\n"
+                                  "Your ban will automatically expire on: {1}.\n"
+                                  "Please allow up to half an hour after this time before contacting the moderation "
+                                  "team if your ban appears to have not yet been lifted."
+                                  .format(ban['reason'], timestamp))
+
+            except discord.ext.commands.CommandInvokeError:
+                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                 "Their ban will expire on approximately {1}."
+                                 .format(member, timestamp))
         else:
-            await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
-                              "moderation team. \n"
-                              "\t\tReason: {0} \n"
-                              "\n"
-                              "Your ban will not expire automatically, you must contact the moderation team to appeal."
-                              .format(reason))
+            try:
+                await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
+                                  "moderation team. \n"
+                                  "\t\tReason: {0} \n"
+                                  "\n"
+                                  "Your ban will not expire automatically, you must contact the moderation team to "
+                                  "appeal. ".format(reason))
+                
+            except discord.ext.commands.CommandInvokeError:
+                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                 "Their ban is permanent, and will not expire unless you manually unban them.")
 
         await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
