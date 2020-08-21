@@ -83,7 +83,7 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        @self.scheduler.scheduled_job('interval', hours=1)
+        @self.scheduler.scheduled_job('interval', minutes=30)
         async def unban():
             channel = self.bot.get_channel(self.cyberInternLogChannelId)
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
@@ -93,8 +93,9 @@ class AdminCommands(commands.Cog):
                 await self.bot_unban(ban['member'])
 
             self.bans.delete_many({'expiry': {"$lte": now}})
+            self.nextUnbanAt = self.nextUnbanAt + timedelta(minutes=30)
 
-        self.schedulerStartedAt = datetime.utcnow()
+        self.nextUnbanAt = datetime.utcnow() + timedelta(minutes=30)
         self.scheduler.start()
 
     # Helper function to validate that admin command was used in a correct channel
@@ -146,32 +147,16 @@ class AdminCommands(commands.Cog):
             expiry = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
             expiry = expiry + timedelta(seconds=ban_duration_in_seconds)
 
-            # this looks a little messy so let's summarize:
-            #   the unban task runs every hour.
-            #   that means bans won't expire EXACTLY after the ban duration set
-            #   i want to notify the user of the time when the unban task will unban them
-            if expiry.minute > self.schedulerStartedAt.minute:
-                if expiry.hour == 23:
-                    hour = 0
-                else:
-                    hour = expiry.hour+1
-                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=hour,
-                                      minute=self.schedulerStartedAt.minute)
-            elif expiry.minute < self.schedulerStartedAt.minute:
-                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour,
-                                      minute=self.schedulerStartedAt.minute)
-            else:
-                expires_at = expiry
-
-            ban = {'member': member.id, 'expiry': expires_at, 'reason': reason}
+            ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
             self.bans.insert_one(ban)
-            timestamp = expires_at.strftime('%B %d %Y at %I:%M %p UTC')
+            timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
 
             await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
                               "\t\tReason: {0} \n"
                               "\n"
                               "Your ban will automatically expire on: {1}.\n"
-                              "Please allow up to an hour after this time before contacting the moderation team."
+                              "Please allow up to half an hour after this time before contacting the moderation team "
+                              "if your ban appears to have not yet been lifted."
                               .format(ban['reason'], timestamp))
         else:
             await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
@@ -181,7 +166,7 @@ class AdminCommands(commands.Cog):
                               "Your ban will not expire automatically, you must contact the moderation team to appeal."
                               .format(reason))
 
-        await ctx.guild.ban(user=member, delete_message_days=1)
+        await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
         logging.info('{0.message.author} banned user with id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
@@ -215,22 +200,7 @@ class AdminCommands(commands.Cog):
     @commands.command()
     @commands.has_permissions(ban_members=True)
     async def unbancheckwhen(self, ctx):
-        now = datetime.utcnow()
-
-        after_unban = now.minute >= self.schedulerStartedAt.minute
-
-        if after_unban:
-            if now.hour == 23:
-                hour = 0
-            else:
-                hour = now.hour+1
-            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=hour,
-                                  minute=self.schedulerStartedAt.minute)
-        else:
-            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour,
-                                  minute=self.schedulerStartedAt.minute)
-
-        out = next_unban.strftime('%B %d %Y at %I:%M %p UTC')
+        out = self.nextUnbanAt.strftime('%B %d %Y at %I:%M %p UTC')
         await ctx.channel.send("The ban list will be checked on {0}.".format(out))
         logging.info('{0.message.author} checked the time for the unban scheduler in channel {1}'
                      .format(ctx, ctx.channel.name))
