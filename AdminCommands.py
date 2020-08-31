@@ -61,10 +61,15 @@ def durationGood(duration):
 
 
 async def hasGoodTarget(ctx, member: discord.Member = None):
-    member_roles = list()
-    for i in member.roles:
-        member_roles.append(i.name)
-    trying_to_ban_mod = any(item in ['interns', 'gods'] for item in member_roles)
+    trying_to_ban_mod = False
+    for role in member.roles:
+        if role.name == 'Cyber Intern':
+            continue
+
+        if role.permissions.kick_members or role.permissions.ban_members:
+            trying_to_ban_mod = True
+            break
+
     if trying_to_ban_mod:
         await ctx.message.delete()
         await ctx.guild.owner.send("Hello!\n\n"
@@ -85,17 +90,13 @@ class AdminCommands(commands.Cog):
         # DB, as a free mongodb cluster, only has 512MB of storage, but this should be plenty
         self.bans = MongoClient(os.environ['CONNECTION_STRING'])['cyber-intern'].bans
 
-        # TODO: consider having a search to find if the channel, and create it if it doesn't exist instead?
-        self.internChannelId = 723323448075485237
-        self.cyberInternLogChannelId = 723740807433027685
-
         # scheduling
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
         @self.scheduler.scheduled_job('interval', minutes=30)
         async def unban():
-            channel = self.bot.get_channel(self.cyberInternLogChannelId)
+            channel = self.bot.get_channel(os.environ['INTERN_LOG_CHANNEL_ID'])
             await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
 
             now = datetime.utcnow()
@@ -110,9 +111,9 @@ class AdminCommands(commands.Cog):
 
     # Helper function to validate that admin command was used in a correct channel
     async def sentInPrivateChannel(self, ctx, member: discord.User = None):
-        if ctx.channel.name != 'interns-assemble':
+        if ctx.channel.id != int(os.environ['MOD_CHANNEL_ID']):
             await ctx.message.delete()
-            channel = self.bot.get_channel(self.internChannelId)
+            channel = self.bot.get_channel(int(os.environ['MOD_CHANNEL_ID']))
             await channel.send('{0.message.author.mention}: You can only use administrator commands here.'.format(ctx))
             return False
         if member == ctx.message.author:
@@ -164,7 +165,6 @@ class AdminCommands(commands.Cog):
             # ban should be added to the DB AFTER ban goes through
             ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
             timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
-            self.bans.insert_one(ban)
 
             try:
                 await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation "
@@ -175,6 +175,8 @@ class AdminCommands(commands.Cog):
                                   "Please allow up to half an hour after this time before contacting the moderation "
                                   "team if your ban appears to have not yet been lifted."
                                   .format(ban['reason'], timestamp))
+                # add ban to DB, i only want temp bans in there
+                self.bans.insert_one(ban)
 
             except discord.ext.commands.CommandInvokeError:
                 ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
@@ -261,7 +263,7 @@ class AdminCommands(commands.Cog):
 
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
-        channel = self.bot.get_channel(self.cyberInternLogChannelId)
+        channel = self.bot.get_channel(os.environ['INTERN_LOG_CHANNEL_ID'])
         guild = channel.guild
         banned_users = await guild.bans()
         member = None
