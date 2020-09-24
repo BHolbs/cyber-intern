@@ -79,5 +79,7 @@ async def on_ready():
         channel = await guilds[0].create_text_channel('intern-log', overwrites=overwrites, category=category)
         await channel.send('Hello! This is the start of my logging channel!')
 
+    await guilds[0].get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID'])).send('Cyber intern online!')
+
 
 bot.run(key)

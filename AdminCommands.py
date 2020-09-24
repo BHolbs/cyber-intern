@@ -94,19 +94,18 @@ class AdminCommands(commands.Cog):
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        @self.scheduler.scheduled_job('interval', minutes=30)
+        @self.scheduler.scheduled_job('interval', minutes=15)
         async def unban():
-            channel = self.bot.get_channel(os.environ['INTERN_LOG_CHANNEL_ID'])
-            await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
+            channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
 
             now = datetime.utcnow()
             for ban in self.bans.find({'expiry': {"$lte": now}}):
                 await self.bot_unban(ban['member'])
 
             self.bans.delete_many({'expiry': {"$lte": now}})
-            self.nextUnbanAt = self.nextUnbanAt + timedelta(minutes=30)
+            self.nextUnbanAt = self.nextUnbanAt + timedelta(minutes=15)
 
-        self.nextUnbanAt = datetime.utcnow() + timedelta(minutes=30)
+        self.nextUnbanAt = datetime.utcnow() + timedelta(minutes=15)
         self.scheduler.start()
 
     # Helper function to validate that admin command was used in a correct channel
@@ -263,7 +262,7 @@ class AdminCommands(commands.Cog):
 
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
-        channel = self.bot.get_channel(os.environ['INTERN_LOG_CHANNEL_ID'])
+        channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
         guild = channel.guild
         banned_users = await guild.bans()
         member = None

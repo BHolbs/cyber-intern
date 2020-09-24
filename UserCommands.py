@@ -19,22 +19,23 @@ class UserCommands(commands.Cog):
     @commands.command(name='8ball')
     async def eight_ball(self, ctx, *, arg):
         if len(arg) == 0:
-            logging.info(str(ctx.message.author) + ' prompted 8ball without a question.')
+            logging.info('User with id: ' + str(ctx.message.author.id) + ' prompted 8ball without a question.')
             await ctx.send('{0.message.author.mention}, please provide a question! It doesn\'t make sense for me to '
                            'respond without a question.'.format(ctx))
 
-        val = random.randint(0, len(self.responses))
+        val = random.randint(0, len(self.responses)-1)
         shuff_responses = random.sample(self.responses, len(self.responses))
         response = shuff_responses[val]
 
         msg = '{0.message.author.mention}: '.format(ctx) + ' ' + response
-        logging.info(str(ctx.message.author) + ' prompted 8 ball with a question and got a response.')
+        logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted 8 ball with a question and got a '
+                                                                     'response.')
         await ctx.send(msg)
 
     @commands.command()
     async def flipacoin(self, ctx):
         await ctx.send('{0.message.author.mention}, call it!'.format(ctx))
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         out = random.randint(0, 1)
         if out == 1:
             await ctx.send('It\'s heads!')
@@ -46,18 +47,20 @@ class UserCommands(commands.Cog):
         r = requests.get('https://gundam.fandom.com/api/v1/Search/List?query='+arg)
         response = r.json()
         if r.status_code == 400 or r.status_code == 404:
-            logging.info(str(ctx.message.author) + ' prompted gwiki with a bad query.')
+            logging.info('User with id: ' + str(ctx.message.author.id) + ' prompted gwiki with a bad query.')
             await ctx.send('{0.message.author.mention}, it looks like your search wasn\'t allowed by the wiki.'
                            'Try with a different query.'.format(ctx))
             return
         else:
             if len(response["items"]) == 0:
-                logging.info(str(ctx.message.author) + ' prompted gwiki with a query that returned nothing.')
+                logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted gwiki with a query that '
+                                                                             'returned nothing.')
                 await ctx.send('{0.message.author.mention}, I can\'t find anything with that search.'
                                ' Try again?'.format(ctx))
                 return
             url = response["items"][0]["url"]
-            logging.info('{0} prompted gwiki with a good query and was served a page.'.format(str(ctx.message.author)))
+            logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted gwiki with a good query and was '
+                                                                         'served a page.')
             await ctx.send('{0.message.author.mention}, looking for this?: '.format(ctx) + url)
 
 
