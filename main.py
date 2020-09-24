@@ -22,6 +22,8 @@ logging.info("Connection string set, booting up.")
 startup_extensions = ['UserCommands', 'AdminCommands']
 bot = commands.Bot(command_prefix='!')
 
+menacing_emoji = None
+
 # load extensions
 for extension in startup_extensions:
     try:
@@ -79,7 +81,20 @@ async def on_ready():
         channel = await guilds[0].create_text_channel('intern-log', overwrites=overwrites, category=category)
         await channel.send('Hello! This is the start of my logging channel!')
 
+    for emoji in bot.guilds[0].emojis:
+        if emoji.name == 'menacing':
+            global menacing_emoji
+            menacing_emoji = emoji
+            break
+
     await guilds[0].get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID'])).send('Cyber intern online!')
+
+
+@bot.event
+async def on_message(message):
+    if 'approaching me?' in message.clean_content.lower() and menacing_emoji is not None:
+        await message.add_reaction(menacing_emoji)
+    await bot.process_commands(message)
 
 
 bot.run(key)
