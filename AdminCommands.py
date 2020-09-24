@@ -12,8 +12,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # returns how many seconds long the ban is, or -1 if the duration is formatted improperly
 def durationGood(duration):
     # initialize to -1, so we can skip it rather than require both flags even if a value is 0
-    flags = {'d': -1, 'h': -1}
-    allowed = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'd', 'h'}
+    flags = {'d': -1, 'h': -1, 'm': -1}
+    allowed = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'd', 'h', 'm'}
 
     duration = duration.lower()
     for i in range(len(duration)):
@@ -34,6 +34,12 @@ def durationGood(duration):
             else:
                 flags['h'] = i
 
+        if duration[i] == 'm':
+            if flags['m'] != -1:
+                return -1
+            else:
+                flags['m'] = i
+
     flags_in_order = {key: value for key, value in sorted(flags.items(), key=lambda item: item[1])}
     seconds = 0
     start = 0
@@ -46,15 +52,24 @@ def durationGood(duration):
             end = flags_in_order[key]
             seconds += (int(duration[start:end]) * 60 * 60)
             start = end + 1
+        if key == 'm' and flags_in_order[key] != -1:
+            end = flags_in_order[key]
+            seconds += (int(duration[start:end]) * 60)
+            start = end + 1
 
     return seconds
 
 
 async def hasGoodTarget(ctx, member: discord.Member = None):
-    member_roles = list()
-    for i in member.roles:
-        member_roles.append(i.name)
-    trying_to_ban_mod = any(item in ['interns', 'gods'] for item in member_roles)
+    trying_to_ban_mod = False
+    for role in member.roles:
+        if role.name == 'Cyber Intern':
+            continue
+
+        if role.permissions.kick_members or role.permissions.ban_members:
+            trying_to_ban_mod = True
+            break
+
     if trying_to_ban_mod:
         await ctx.message.delete()
         await ctx.guild.owner.send("Hello!\n\n"
@@ -75,39 +90,38 @@ class AdminCommands(commands.Cog):
         # DB, as a free mongodb cluster, only has 512MB of storage, but this should be plenty
         self.bans = MongoClient(os.environ['CONNECTION_STRING'])['cyber-intern'].bans
 
-        # TODO: change this ID when releasing to the official server
-        # TODO: consider having a search to find if the channel, and create it if it doesn't exist instead?
-        self.internChannelId = 723323448075485237
-        self.cyberInternLogChannelId = 723740807433027685
-
         # scheduling
         self.scheduler = AsyncIOScheduler()
 
         # Scheduled task to automatically check for expired bans
-        @self.scheduler.scheduled_job('interval', hours=1)
+        @self.scheduler.scheduled_job('interval', minutes=15)
         async def unban():
-            channel = self.bot.get_channel(self.cyberInternLogChannelId)
-            await channel.send("Hello! I'm checking the ban list to see if anyone's ban has expired.")
+            channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
 
             now = datetime.utcnow()
             for ban in self.bans.find({'expiry': {"$lte": now}}):
                 await self.bot_unban(ban['member'])
 
             self.bans.delete_many({'expiry': {"$lte": now}})
+            self.nextUnbanAt = self.nextUnbanAt + timedelta(minutes=15)
 
-        self.schedulerStartedAt = datetime.utcnow()
+        self.nextUnbanAt = datetime.utcnow() + timedelta(minutes=15)
         self.scheduler.start()
 
     # Helper function to validate that admin command was used in a correct channel
     async def sentInPrivateChannel(self, ctx, member: discord.User = None):
-        if ctx.channel.name != 'interns-assemble':
+        if ctx.channel.id != int(os.environ['MOD_CHANNEL_ID']):
             await ctx.message.delete()
-            channel = self.bot.get_channel(self.internChannelId)
+            channel = self.bot.get_channel(int(os.environ['MOD_CHANNEL_ID']))
             await channel.send('{0.message.author.mention}: You can only use administrator commands here.'.format(ctx))
             return False
         if member == ctx.message.author:
             await ctx.message.delete()
             await ctx.channel.send("{0.message.author.mention}: You can't ban/unban/kick yourself, dummy.".format(ctx))
+            return False
+        # if someone tries to remove the bot with its own commands
+        if member.id == 675203071609012247:
+            await ctx.channel.send("I can't let you do that, {0.message.author.mention}.")
             return False
         if member is None:
             await ctx.message.delete()
@@ -147,40 +161,42 @@ class AdminCommands(commands.Cog):
             expiry = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
             expiry = expiry + timedelta(seconds=ban_duration_in_seconds)
 
-            # this looks a little messy so let's summarize:
-            #   the unban task runs every hour.
-            #   that means bans won't expire EXACTLY after the ban duration set
-            #   i want to notify the user of the time when the unban task will unban them
-            if expiry.minute > self.schedulerStartedAt.minute:
-                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour + 1,
-                                      minute=expiry.minute)
-            elif expiry.minute < self.schedulerStartedAt.minute:
-                expires_at = datetime(year=expiry.year, month=expiry.month, day=expiry.day, hour=expiry.hour,
-                                      minute=self.schedulerStartedAt.minute)
-            else:
-                expires_at = expiry
+            # ban should be added to the DB AFTER ban goes through
+            ban = {'member': member.id, 'expiry': expiry, 'reason': reason}
+            timestamp = expiry.strftime('%B %d %Y at %I:%M %p UTC')
 
-            ban = {'member': member.id, 'expiry': expires_at, 'reason': reason}
-            self.bans.insert_one(ban)
-            timestamp = expires_at.strftime('%B %d %Y at %I:%M %p UTC')
+            try:
+                await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation "
+                                  "team. \n "
+                                  "\t\tReason: {0} \n"
+                                  "\n"
+                                  "Your ban will automatically expire on: {1}.\n"
+                                  "Please allow up to half an hour after this time before contacting the moderation "
+                                  "team if your ban appears to have not yet been lifted."
+                                  .format(ban['reason'], timestamp))
+                # add ban to DB, i only want temp bans in there
+                self.bans.insert_one(ban)
 
-            await member.send("Hello, unfortunately you have been banned from The OPMeatery by the moderation team. \n"
-                              "\t\tReason: {0} \n"
-                              "\n"
-                              "Your ban will automatically expire on: {1}.\n"
-                              "Please allow up to an hour after this time before contacting the moderation team."
-                              .format(ban['reason'], timestamp))
+            except discord.ext.commands.CommandInvokeError:
+                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                 "Their ban will expire on approximately {1}."
+                                 .format(member, timestamp))
         else:
-            await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
-                              "moderation team. \n"
-                              "\t\tReason: {0} \n"
-                              "\n"
-                              "Your ban will not expire automatically, you must contact the moderation team to appeal."
-                              .format(reason))
+            try:
+                await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
+                                  "moderation team. \n"
+                                  "\t\tReason: {0} \n"
+                                  "\n"
+                                  "Your ban will not expire automatically, you must contact the moderation team to "
+                                  "appeal. ".format(reason))
 
-        await ctx.guild.ban(user=member, delete_message_days=1)
+            except discord.ext.commands.CommandInvokeError:
+                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                 "Their ban is permanent, and will not expire unless you manually unban them.")
+
+        await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
-        logging.info('{0.message.author} banned {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+        logging.info('{0.message.author} banned user with id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
     # Manual kick command for moderators
@@ -202,32 +218,17 @@ class AdminCommands(commands.Cog):
                           "\t\tReason: {0.reason}\n"
                           "\n"
                           "You may rejoin the server immediately, but be aware that a kick is a warning. If you "
-                          "continue the behavior that resulted in your kick, you may be banned. ")
+                          "continue the behavior that resulted in your kick, you may be banned.".format(reason))
         await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
-        logging.info('{0.message.author} kicked {1.name}#{1.discriminator}, id: {1.id} with reason: {2}.'
+        logging.info('{0.message.author} kicked user with id: {1.id} with reason: {2}.'
                      .format(ctx, member, reason))
 
     # This one is actually fine to be sent in any channel, there's no significant information being forfeited here
     @commands.command()
     @commands.has_permissions(ban_members=True)
     async def unbancheckwhen(self, ctx):
-        now = datetime.utcnow()
-
-        after_unban = now.minute >= self.schedulerStartedAt.minute
-
-        if after_unban:
-            if now.hour == 23:
-                hour = 0
-            else:
-                hour = now.hour+1
-            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=hour,
-                                  minute=self.schedulerStartedAt.minute)
-        else:
-            next_unban = datetime(year=now.year, month=now.month, day=now.day, hour=now.hour,
-                                  minute=self.schedulerStartedAt.minute)
-
-        out = next_unban.strftime('%B %d %Y at %I:%M %p UTC')
+        out = self.nextUnbanAt.strftime('%B %d %Y at %I:%M %p UTC')
         await ctx.channel.send("The ban list will be checked on {0}.".format(out))
         logging.info('{0.message.author} checked the time for the unban scheduler in channel {1}'
                      .format(ctx, ctx.channel.name))
@@ -256,12 +257,12 @@ class AdminCommands(commands.Cog):
         await ctx.guild.unban(user=member, reason='Prompted to by {0.message.author}'.format(ctx))
         await ctx.channel.send('{0.message.author.mention}: User has been unbanned. Please reach out to them manually'
                                ' to notify them.'.format(ctx))
-        logging.info('{0.message.author} unbanned {1.name}#{1.discriminator}, id: {1.id}.'
+        logging.info('{0.message.author} unbanned user with id: {1.id}.'
                      .format(ctx, member))
 
     # Handler for the bot automatically unbanning members
     async def bot_unban(self, memberId=None):
-        channel = self.bot.get_channel(self.cyberInternLogChannelId)
+        channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
         guild = channel.guild
         banned_users = await guild.bans()
         member = None
@@ -285,7 +286,7 @@ class AdminCommands(commands.Cog):
 
         await channel.send("Unbanned {0.name}#{0.discriminator} automatically.".format(member))
         await guild.unban(user=member, reason='Ban expired.')
-        logging.info('I unbanned {0.name}#{0.discriminator}, id: {0.id} because ban expired.'.format(member))
+        logging.info('I unbanned user with id: {0.id} because ban expired.'.format(member))
         return True
 
 
