@@ -19,7 +19,7 @@ file.close()
 logging.info("Connection string set, booting up.")
 
 # set up extensions, assign command prefix
-startup_extensions = ['UserCommands', 'AdminCommands']
+startup_extensions = ['UserCommands', 'PatronCommands', 'AdminCommands']
 bot = commands.Bot(command_prefix='!')
 
 menacing_emoji = None

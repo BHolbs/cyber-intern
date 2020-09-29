@@ -18,6 +18,9 @@ log
 # Ban List
 bans
 
+# Time file for patron command
+time
+
 # C extensions
 *.so
 
