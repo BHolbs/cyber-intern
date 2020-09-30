@@ -28,8 +28,11 @@ class PatronCommands(commands.Cog):
         if os.path.isfile('time'):
             try:
                 with open('time', mode='r') as f:
-                    time = f.readlines()[0]
-                    self.when_blue_last_mentioned = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
+                    time = f.readlines()
+                    if len(time) == 0:
+                        self.when_blue_last_mentioned = None
+                    else:
+                        self.when_blue_last_mentioned = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
             except IOError:
                 # something would have to be VERY wrong for this to happen, print to the console and then quit
                 # since this can only happen on startup, quit out if this happens
