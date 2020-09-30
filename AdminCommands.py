@@ -277,7 +277,7 @@ class AdminCommands(commands.Cog):
             timestamp = now.strftime('%B %d %Y at %I:%M %p UTC')
             logging.error("Auto unban mismatch. Auto unbanner tried to unban someone not on the ban list."
                           " Member Id provided: {0}".format(memberId))
-            await guild.owner.send("Hello. A mismatch has occurred during the automatic unbanning process. "
+            await guild.owner.send("Hello. I managed to try to unban someone automatically that wasn't banned. "
                                    "Please notify my developer as soon as possible, he'll know what I mean.\n"
                                    "Please provide the following information:\n"
                                    "\t Error occurred at: {0}.\n"

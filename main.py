@@ -19,8 +19,10 @@ file.close()
 logging.info("Connection string set, booting up.")
 
 # set up extensions, assign command prefix
-startup_extensions = ['UserCommands', 'AdminCommands']
+startup_extensions = ['UserCommands', 'PatronCommands', 'AdminCommands']
 bot = commands.Bot(command_prefix='!')
+
+menacing_emoji = None
 
 # load extensions
 for extension in startup_extensions:
@@ -28,7 +30,8 @@ for extension in startup_extensions:
         bot.load_extension(extension)
     except Exception as e:
         exc = '{}: {}'.format(type(e).__name__, e)
-        logging.error('Failed to load extension {0}\n{1}'.format(extension, exc))
+        print('Failed to load extension {0}\n{1}'.format(extension, exc))
+        logging.error("Failed to load extension{0}\n{1}".format(extension, exc))
         quit()
 
 
@@ -40,7 +43,8 @@ async def on_ready():
     logging.info('Performing startup checks.')
     guilds = bot.guilds
     if len(guilds) > 1:
-        logging.error('I\'m in multiple servers. I can only be in one right now.')
+        logging.error('Bot in in multiple servers. I can only be in one right now.')
+        print('I\'m in multiple servers. I can only be in one right now.')
         quit()
 
     # the interns-assemble channel already exists, so i can just grab that id once i get there, but
@@ -79,7 +83,20 @@ async def on_ready():
         channel = await guilds[0].create_text_channel('intern-log', overwrites=overwrites, category=category)
         await channel.send('Hello! This is the start of my logging channel!')
 
+    for emoji in bot.guilds[0].emojis:
+        if emoji.name == 'menacing':
+            global menacing_emoji
+            menacing_emoji = emoji
+            break
+
     await guilds[0].get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID'])).send('Cyber intern online!')
+
+
+@bot.event
+async def on_message(message):
+    if 'approaching me?' in message.clean_content.lower() and menacing_emoji is not None:
+        await message.add_reaction(menacing_emoji)
+    await bot.process_commands(message)
 
 
 bot.run(key)
