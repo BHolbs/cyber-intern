@@ -30,7 +30,8 @@ for extension in startup_extensions:
         bot.load_extension(extension)
     except Exception as e:
         exc = '{}: {}'.format(type(e).__name__, e)
-        logging.error('Failed to load extension {0}\n{1}'.format(extension, exc))
+        print('Failed to load extension {0}\n{1}'.format(extension, exc))
+        logging.error("Failed to load extension{0}\n{1}".format(extension, exc))
         quit()
 
 
@@ -42,7 +43,8 @@ async def on_ready():
     logging.info('Performing startup checks.')
     guilds = bot.guilds
     if len(guilds) > 1:
-        logging.error('I\'m in multiple servers. I can only be in one right now.')
+        logging.error('Bot in in multiple servers. I can only be in one right now.')
+        print('I\'m in multiple servers. I can only be in one right now.')
         quit()
 
     # the interns-assemble channel already exists, so i can just grab that id once i get there, but

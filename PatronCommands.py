@@ -10,10 +10,10 @@ def make_diff_string(delta):
         out += "{0.days} day(s)".format(delta)
         return out
     elif delta.total_seconds() >= 3600:
-        out += "{0} hour(s)".format(round(delta.total_seconds() / (60 * 60)), 2)
+        out += "{0} hour(s)".format(round(delta.total_seconds() / (60 * 60), 2))
         return out
     elif delta.total_seconds() >= 60:
-        out += "{0} minute(s)".format(round(delta.total_seconds() / 60,2))
+        out += "{0} minute(s)".format(round(delta.total_seconds() / 60, 2))
         return out
     else:
         out += "{0} seconds".format(round(delta.total_seconds(), 2))
@@ -32,6 +32,7 @@ class PatronCommands(commands.Cog):
                     self.when_blue_last_mentioned = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
             except IOError:
                 # something would have to be VERY wrong for this to happen, print to the console and then quit
+                # since this can only happen on startup, quit out if this happens
                 print("'time' file exists, but unable to open it. Quitting.")
                 quit()
             finally:
@@ -44,6 +45,7 @@ class PatronCommands(commands.Cog):
                     self.when_blue_last_mentioned = None
             except IOError:
                 # something would have to be VERY wrong for this to happen, print to the console and then quit
+                # since this can only happen on startup, quit out if this happens
                 print("'time' file was unable to be created. Quitting.")
                 quit()
             finally:
