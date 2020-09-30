@@ -41,7 +41,7 @@ class PatronCommands(commands.Cog):
         else:
             try:
                 with open('time', mode='w') as f:
-                    f.write('')
+                    f.write(' ')
                     self.when_blue_last_mentioned = None
             except IOError:
                 # something would have to be VERY wrong for this to happen, print to the console and then quit
