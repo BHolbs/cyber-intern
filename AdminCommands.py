@@ -178,9 +178,9 @@ class AdminCommands(commands.Cog):
                 self.bans.insert_one(ban)
 
             except discord.ext.commands.CommandInvokeError:
-                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
-                                 "Their ban will expire on approximately {1}."
-                                 .format(member, timestamp))
+                await ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                       "Their ban will expire on approximately {1}."
+                                       .format(member, timestamp))
         else:
             try:
                 await member.send("Hello, unfortunately you have been permanently banned from The OPMeatery by the "
@@ -191,8 +191,8 @@ class AdminCommands(commands.Cog):
                                   "appeal. ".format(reason))
 
             except discord.ext.commands.CommandInvokeError:
-                ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
-                                 "Their ban is permanent, and will not expire unless you manually unban them.")
+                await ctx.channel.send("Banned {0.name}#{0.discriminator}, but was unable to message user. "
+                                       "Their ban is permanent, and will not expire unless you manually unban them.")
 
         await ctx.guild.ban(user=member, delete_message_days=1, reason=reason)
         await ctx.message.delete()
@@ -214,11 +214,17 @@ class AdminCommands(commands.Cog):
         if reason is None:
             reason = "Not specified."
 
-        await member.send("Hello, unfortunately you have been kicked from The OPMeatery by the moderation team.\n"
-                          "\t\tReason: {0.reason}\n"
-                          "\n"
-                          "You may rejoin the server immediately, but be aware that a kick is a warning. If you "
-                          "continue the behavior that resulted in your kick, you may be banned.".format(reason))
+        try:
+            await member.send("Hello, unfortunately you have been kicked from The OPMeatery by the moderation team.\n"
+                              "\t\tReason: {0}\n"
+                              "\n"
+                              "You may rejoin the server immediately, but be aware that a kick is a warning. If you "
+                              "continue the behavior that resulted in your kick, you may be banned.".format(reason))
+        except discord.ext.commands.CommandInvokeError:
+            await ctx.channel.send("Kicked {0.name}#{0.discriminator}, but was unable to message user. "
+                                   "You'll have to manually reach out to them about why they were kicked."
+                                   .format(member))
+
         await ctx.guild.kick(user=member, reason=reason)
         await ctx.message.delete()
         logging.info('{0.message.author} kicked user with id: {1.id} with reason: {2}.'
