@@ -1,16 +1,23 @@
 import discord
 from discord.ext import commands
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import os
 
 # spin up the bot
-logging.basicConfig(filename='log', level=logging.INFO)
+# configure logger
+handler = TimedRotatingFileHandler("log", when="midnight", interval=1)
+handler.suffix = "%Y%m%d"
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 logging.info("Starting.")
+
+# retrieve discord bot key
 file = open('key', mode='r')
 key = file.read()
 file.close()
 logging.info("Key retrieved.")
 
+# retrieve connection string
 file = open('connection_string', mode='r')
 connection_string = file.read()
 os.environ['CONNECTION_STRING'] = connection_string

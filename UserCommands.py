@@ -28,7 +28,7 @@ class UserCommands(commands.Cog):
         response = shuff_responses[val]
 
         msg = '{0.message.author.mention}: '.format(ctx) + ' ' + response
-        logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted 8 ball with a question and got a '
+        logging.info('User with id: ' + str(ctx.message.author.id) + ' prompted 8 ball with a question and got a '
                                                                      'response.')
         await ctx.send(msg)
 
@@ -53,13 +53,13 @@ class UserCommands(commands.Cog):
             return
         else:
             if len(response["items"]) == 0:
-                logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted gwiki with a query that '
+                logging.info('User with id: ' + str(ctx.message.author.id) + ' prompted gwiki with a query that '
                                                                              'returned nothing.')
                 await ctx.send('{0.message.author.mention}, I can\'t find anything with that search.'
                                ' Try again?'.format(ctx))
                 return
             url = response["items"][0]["url"]
-            logging.info('User with id: ' + str(ctx.message.author.id) + 'prompted gwiki with a good query and was '
+            logging.info('User with id: ' + str(ctx.message.author.id) + ' prompted gwiki with a good query and was '
                                                                          'served a page.')
             await ctx.send('{0.message.author.mention}, looking for this?: '.format(ctx) + url)
 
