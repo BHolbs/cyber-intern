@@ -1,5 +1,6 @@
 import os
 import discord
+import asyncio
 from discord.ext import commands
 from datetime import datetime, timedelta
 import logging
@@ -307,12 +308,12 @@ class AdminCommands(commands.Cog):
 
         message = await ctx.channel.send("{0.message.author.mention}, are you sure? React with the green check"
                 " mark to confirm.")
-        message.add_reaction('✅')
+        await message.add_reaction('✅')
 
         try:
             user, reaction = await self.bot.wait_for('reaction-add', timeout=15.0, check=check)
         except asyncio.TimeOutError:
-            message.add_reaction('❌')
+            await message.add_reaction('❌')
         else:
             channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
             await channel.send("Cyber Intern shutting down.")
