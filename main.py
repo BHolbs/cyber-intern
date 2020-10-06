@@ -7,7 +7,7 @@ import os
 # spin up the bot
 # configure logger
 handler = TimedRotatingFileHandler("log", when="midnight", interval=1)
-handler.suffix = "%Y%m%d"
+handler.suffix = "%Y_%m_%d"
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 logging.info("Starting.")
 

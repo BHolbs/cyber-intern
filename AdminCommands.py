@@ -83,8 +83,6 @@ async def hasGoodTarget(ctx, member: discord.Member = None):
     return True
 
 
-
-
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -303,18 +301,19 @@ class AdminCommands(commands.Cog):
     @commands.has_role("gods")
     async def shutdown(self, ctx):
         # check method for wait_for
-        def check(user, reaction):
+        def check(reaction, user):
             return ctx.message.author == user and str(reaction.emoji) == '✅'
 
-        message = await ctx.channel.send("{0.message.author.mention}, are you sure? React with the green check"
-                " mark to confirm.")
+        message = await ctx.channel.send("{0.message.author.mention}, are you sure? React with the green check mark"
+                                         " within 15 seconds to confirm.".format(ctx))
         await message.add_reaction('✅')
 
         try:
-            user, reaction = await self.bot.wait_for('reaction-add', timeout=15.0, check=check)
-        except asyncio.TimeOutError:
+            reaction, user = await self.bot.wait_for('reaction_add', timeout=15.0, check=check)
+        except asyncio.TimeoutError:
             await message.add_reaction('❌')
-        else:
+
+        if str(reaction.emoji) == '✅':
             channel = self.bot.get_channel(int(os.environ['INTERN_LOG_CHANNEL_ID']))
             await channel.send("Cyber Intern shutting down.")
             logging.info("Admin user with id: {0.id} shut down cyber intern.".format(ctx.message.author))
