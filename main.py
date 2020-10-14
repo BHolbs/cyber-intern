@@ -13,13 +13,13 @@ logging.info("Starting.")
 
 # retrieve discord bot key
 file = open('key', mode='r')
-key = file.read()
+key = file.read().rstrip()
 file.close()
 logging.info("Key retrieved.")
 
 # retrieve connection string
 file = open('connection_string', mode='r')
-connection_string = file.read()
+connection_string = file.read().rstrip()
 os.environ['CONNECTION_STRING'] = connection_string
 connection_string = str()
 file.close()
