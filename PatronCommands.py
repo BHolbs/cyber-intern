@@ -76,7 +76,7 @@ class PatronCommands(commands.Cog):
         last_time_called_out = self.last_time_patron_called_out_blue
         # don't really need precision down to the absolute second, don't let people use this command more than
         # once a minute, since it pings blue
-        if self.when_blue_last_mentioned is not None and last_time_called_out.total_seconds() < 60:
+        if self.when_blue_last_mentioned is not None and last_time_called_out.total_seconds() < 60 and last_time_called_out.microseconds != 0:
             return
         else:
             now = datetime.utcnow()
@@ -93,7 +93,8 @@ class PatronCommands(commands.Cog):
                 f.close()
 
             # really don't like having to do this search here, but doing it in init would be a huge pain
-            blue = ctx.guild.get_member(159145385367961600)
+            with open('./blue_id') as file:
+                blue = int(file.read().rstrip())
             await ctx.message.delete()
             await ctx.channel.send("{0.mention}, either make JoJo Abridged, or talk about something else.".format(blue))
 
