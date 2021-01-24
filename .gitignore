@@ -12,6 +12,9 @@ key
 # Mongo DB connection string
 connection_string
 
+# Blue's id
+blue_id
+
 # Log
 log*
 
